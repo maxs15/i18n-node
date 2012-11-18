@@ -62,9 +62,7 @@ i18n.configure = function (opt) {
 
   // implicitly read all locales
   if (typeof opt.locales === 'object') {
-    opt.locales.forEach(function (l) {
-      read(l);
-    });
+    locales = opt.locales;
   }
 };
 
@@ -78,11 +76,7 @@ i18n.init = function (request, response, next) {
 };
 
 i18n.__ = function () {
-  var locale;
-  if (this && this.scope) {
-    locale = this.scope.locale;
-  }
-  var msg = translate(locale, arguments[0]);
+  var msg = translate(this.locale, arguments[0]);
   if (arguments.length > 1) {
     msg = vsprintf(msg, Array.prototype.slice.call(arguments, 1));
   }
@@ -90,14 +84,10 @@ i18n.__ = function () {
 };
 
 i18n.__n = function () {
-  var locale;
-  if (this && this.scope) {
-    locale = this.scope.locale;
-  }
   var singular = arguments[0];
   var plural = arguments[1];
   var count = arguments[2];
-  var msg = translate(locale, singular, plural);
+  var msg = translate(this.locale, singular, plural);
 
   if (parseInt(count, 10) > 1) {
     msg = vsprintf(msg.other, [count]);
@@ -123,7 +113,6 @@ i18n.setLocale = function (arg1, arg2) {
     request = arg1;
     target_locale = arg2;
   }
-
   if (locales[target_locale]) {
     if (request === undefined) {
       defaultLocale = target_locale;
@@ -132,6 +121,7 @@ i18n.setLocale = function (arg1, arg2) {
       request.locale = target_locale;
     }
   }
+  this.locale = target_locale;
   return i18n.getLocale(request);
 };
 
@@ -152,6 +142,19 @@ i18n.overrideLocaleFromQuery = function (req) {
     i18n.setLocale(req, urlObj.query.locale.toLowerCase());
   }
 };
+
+/* To add a directory where there is language files
+ * With these method the module is able to handle multiple directories
+ * Params:
+ *    path: The path of the directory 
+ */
+i18n.addDirectory = function (path)
+{
+  directory = path;
+  locales.forEach(function (l) {
+      read(l);
+  });
+}
 
 // ===================
 // = private methods =
@@ -230,6 +233,13 @@ function translate(locale, singular, plural) {
   return locales[locale][singular];
 }
 
+
+// To extend an object
+function merge(obj1, obj2){
+    for (var attrname in obj2) { obj1[attrname] = obj2[attrname]; }
+    return obj1;
+}
+
 // try reading a file
 
 function read(locale) {
@@ -237,10 +247,11 @@ function read(locale) {
   var file = locate(locale);
   try {
     if (verbose) console.log('read ' + file + ' for locale: ' + locale);
-    localeFile = fs.readFileSync(file);
+    localeFile = fs.readFileSync(file, "utf8");
     try {
       // parsing filecontents to locales[locale]
-      locales[locale] = JSON.parse(localeFile);
+      if (!locales[locale]) locales[locale] = {};
+      locales[locale] = merge(locales[locale], JSON.parse(localeFile));
     } catch (e) {
       console.error('unable to parse locales from file (maybe ' + file + ' is empty or invalid json?): ', e);
     }
